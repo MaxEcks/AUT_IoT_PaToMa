@@ -11,7 +11,7 @@ Ein MQTT-Client, der Daten einer IoT-Lehrfabrik empfängt und in einer TinyDB-Da
   python -m venv .venv
 
 ## Virtuelle Umgebung aktivieren:
-  .\.venv\Scripts\activate
+  ".\.venv\Scripts\activate"
 
 ## Virtuelle Umgebung beenden:
   deactivate
