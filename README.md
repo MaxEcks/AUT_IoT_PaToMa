@@ -11,7 +11,7 @@ Ein MQTT-Client, der Daten einer IoT-Lehrfabrik empfängt und in einer TinyDB-Da
   python -m venv .venv
 
 ## Virtuelle Umgebung aktivieren:
-  ".\.venv\Scripts\activate"
+  .\\.venv\Scripts\activate
 
 ## Virtuelle Umgebung beenden:
   deactivate
@@ -24,8 +24,9 @@ Ein MQTT-Client, der Daten einer IoT-Lehrfabrik empfängt und in einer TinyDB-Da
 
 ## Projekt starten (genau so, weil Module in verschiedenen Ordnern sind):
   python -m mqtt_client.mqtt_client
-
+  
 ## Projektstruktur:
+<pre>
 AUT_IoT_PaToMa/
 ├── .venv
 ├── database/
@@ -39,3 +40,4 @@ AUT_IoT_PaToMa/
 ├── requirements.txt
 ├── .gitignore
 └── README.md
+</pre>
