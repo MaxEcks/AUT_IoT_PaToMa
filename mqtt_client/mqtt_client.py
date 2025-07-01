@@ -1,15 +1,35 @@
+"""
+@file mqtt_client.py
+@brief MQTT-Client zur Aufnahme und Speicherung von Sensordaten aus der Teaching Factory
+
+Dieses Modul liest die MQTT-Konfiguration aus einer YAML-Datei, verbindet sich mit dem Broker,
+abonniert relevante Topics und speichert empfangene Nachrichten strukturiert in einer TinyDB-Datenbank.
+"""
+
+import os
+import json
+import yaml
 import paho.mqtt.client as mqtt
 from database.database import DatabaseConnector
-import json
-from datetime import date
 
-# MQTT Server Configuration
-broker = "158.180.44.197"
-port = 1883
-topic = "iot1/teaching_factory/#"
-payload = "on"
+# Konfigurationsdatei laden (config.yaml)
+CONFIG_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml'))
 
-# Topic definitions
+try:
+    with open(CONFIG_PATH, 'r') as f:
+        config = yaml.safe_load(f)
+    mqtt_config = config["mqtt"]
+except Exception as e:
+    raise RuntimeError(f"Fehler beim Laden der Konfigurationsdatei ({CONFIG_PATH}): {e}")
+
+# MQTT Parameter extrahieren (von config.yaml)
+broker = mqtt_config["broker"]
+port = mqtt_config["port"]
+topic = mqtt_config["topic"]
+username = mqtt_config["username"]
+password = mqtt_config["password"]
+
+# MQTT Topic Definitionen
 recipe = "iot1/teaching_factory/recipe"
 temperature = "iot1/teaching_factory/temperature"
 dispenser_red = "iot1/teaching_factory/dispenser_red"
@@ -20,70 +40,61 @@ drop_oscillation = "iot1/teaching_factory/drop_oscillation"
 ground_truth = "iot1/teaching_factory/ground_truth"
 
 def table_name_from_topic(topic: str) -> str:
-    if topic == recipe:
-        return "recipe"
-    elif topic == temperature:
-        return "temperature"
-    elif topic == dispenser_red:
-        return "dispenser_red"
-    elif topic == dispenser_blue:
-        return "dispenser_blue"
-    elif topic == dispenser_green:
-        return "dispenser_green"
-    elif topic == scale_final_weight:
-        return "final_weight"
-    elif topic == drop_oscillation:
-        return "drop_oscillation"
-    elif topic == ground_truth:
-        return "ground_truth"
+    """
+    @brief Ordnet ein MQTT-Topic einem DB-Tabellennamen zu
+    @param topic Vollständiger Topic-String
+    @return Tabellenname für TinyDB
+    """
+    mapping = {
+        recipe: "recipe",
+        temperature: "temperature",
+        dispenser_red: "dispenser_red",
+        dispenser_blue: "dispenser_blue",
+        dispenser_green: "dispenser_green",
+        scale_final_weight: "final_weight",
+        drop_oscillation: "drop_oscillation",
+        ground_truth: "ground_truth"
+    }
+    if topic in mapping:
+        return mapping[topic]
     else:
-        raise ValueError(f"Unknown topic: {topic}")
+        raise ValueError(f"Unbekanntes Topic: {topic}")
+    
+def on_connect(client, userdata, flags, rc, properties=None):
+    """
+    @brief Callback bei erfolgreicher oder fehlerhafter MQTT-Verbindung
+    @param rc Return-Code (0 ... OK; > 0 ... Fehler)
+    """
+    if rc == 0:
+        print("Erfolgreich mit MQTT-Broker verbunden.")
+    else:
+        print(f"Fehler beim Verbinden mit MQTT-Broker (Code {rc})")
 
-"""
-class Recipe:
-    def __init__ (self, id : str, creation_date : date, color_levels_grams : dict) -> None:
-        pass
-    pass
-class Temperature:
-    def __init__ (self, dispenser : str, time, temperature_C : float) -> None:
-        pass
-    pass
-class DispenserRed:
-    def __init__ (self, dispenser : str, bottle : int, time, fill_level_grams : float, recipe : int, vibration_index : float) -> None:
-        pass
-    pass
-class DispenserBlue:
-    def __init__ (self, dispenser : str, bottle : int, time, fill_level_grams : float, recipe : int, vibration_index : float) -> None:
-        pass
-    pass
-class DispenserGreen:
-    def __init__ (self, dispenser : str, bottle : int, time, fill_level_grams : float, recipe : int, vibration_index : float) -> None:
-        pass
-    pass
-class ScaleFinalWeight:
-    def __init__ (self, bottle : int, time, final_weight : float) -> None:
-        pass
-    pass
-class DropOscillation:
-    def __init__ (self, bottle : int, drop_oscillation : list) -> None:
-        pass
-    pass
-class GroundTruth:
-    def __init__ (self, bottle : int, is_cracked : bool) -> None:
-        pass
-    pass
-"""
+def on_disconnect(client, userdata, rc):
+    """
+    @brief Callback bei Trennung vom MQTT-Broker
+    @param rc Disconnect-Code
+    """
+    print(f"Verbindung zum MQTT-Broker getrennt (Code {rc})")
+    try:
+        client.reconnect()
+        print("Reconnect initiiert ...")
+    except Exception as e:
+        print("Reconnect fehlgeschlagen: ", e)
 
-# create function for callback
 def on_message(client, userdata, message):
-    # write data in database.json
+    """
+    @brief Callback für eingehende MQTT-Nachrichten
+    Parsed die Payload (JSON oder Rohtext) und speichert sie in die jeweilige Tabelle.
+    @param message MQTT-Nachricht (inkl. Topic und Payload)
+    """
     db = DatabaseConnector()
     try:
         payload_raw = message.payload.decode()
         try:
             payload = json.loads(payload_raw)
         except json.JSONDecodeError:
-            payload = {"raw": payload_raw}  # Fallback
+            payload = {"raw": payload_raw}  # Fallback für unstrukturierte Payloads
         
         table_name = table_name_from_topic(message.topic)
         table = db.get_table(table_name)
@@ -91,44 +102,29 @@ def on_message(client, userdata, message):
             "topic": message.topic,
             "payload": payload
         })
-        print(f"Data inserted into table \"{table_name}\"")
+        print(f"Daten in Tabelle \"{table_name}\" eingefügt.")
 
     except Exception as e:
-        print(f"Error inserting data into database!")
+        print(f"Fehler beim Einfügen der Daten von Topic \"{message.topic}\" in die Datenbank: ", e)
 
-"""
-    topic_parts = message.topic.split('/')
-    topic_key = topic_parts[-1]
-
-    payload = message.payload.decode()
-
-    try:
-        table = db.table(topic_key)
-        table.insert({"topic": message.topic, "payload": payload})
-        print(f"Data inserted into table -> Topic: {topic_key}")
-    except Exception as e:
-        print(f"Error inserting data into table")
-
-    # console output
-    #print("message received:")
-    #print("message: ", message.payload.decode())
-    # print("\n")
-"""
-# create client object
+# MQTT-Client initialisieren
 mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-mqttc.username_pw_set("bobm", "letmein")              
-
-# assign function to callback
+mqttc.username_pw_set(username, password)              
+mqttc.on_connect = on_connect
+mqttc.on_disconnect = on_disconnect
 mqttc.on_message = on_message                          
 
-# establish connection
-mqttc.connect(broker,port)                                 
+try:
+    mqttc.connect(broker, port)
+    mqttc.subscribe(topic, qos=0)
+except Exception as e:
+    raise ConnectionError(f"Verbindungsaufbau zum MQTT-Broker fehlgeschlagen: {e}")
 
-# subscribe
-mqttc.subscribe(topic, qos=0)
-
-# Blocking call that processes network traffic, dispatches callbacks and handles reconnecting.
-#mqttc.loop_forever()
-
-while True:
-    mqttc.loop(0.5)
+# MQTT-Client-Schleife (nicht-blockierend)
+try:
+    while True:
+        mqttc.loop(0.5)
+except KeyboardInterrupt:
+    print("MQTT-Client wird beendet ...")
+except Exception as e:
+    print("Fehler im MQTT-Loop:", e)
