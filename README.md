@@ -1,5 +1,10 @@
 # AUT_IoT_PaToMa
-Finalprojekt Automatisierungstechnik IoT-Teil
+Finalprojekt Automatisierungstechnik IoT-Teil  
+MECH-B-4-ROA-AUT-ILV  
+BA-MECH-23
+
+## Projektbeteiligte:
+Czermak Tobias, Eckstein Maximilian, Neuner Paul
 
 ## Informationen zur Verwendung von Large Language Models (LLMs)
 Bei der Umsetzung dieses Projekts wurden Large Language Models (LLMs) wie ChatGPT verwendet, um Code-Snippets zu generieren und zu optimieren. 
